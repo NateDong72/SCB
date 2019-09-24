@@ -3,10 +3,8 @@ import os
 import sys
 import numpy
 import pickle
-import pandas as pd
 import datetime 
-from sklearn.preprocessing import MinMaxScaler
-
+import pandas as pd
 import warnings
 
 if not sys.warnoptions:
@@ -17,7 +15,7 @@ if not sys.warnoptions:
 os.chdir(os.path.dirname(__file__))
 
 model_training_input    = '../model_input/training_input/'
-user_input              = '../model_input/user_input/STANLN.csv'
+user_input              = '../model_input/user_input/KDB.csv'
 model_output            = '../model_output/predicted_securities/'
 
 df_user_input           = pd.read_csv(user_input, delimiter = '|',encoding = "ISO-8859-1", keep_default_na=False)
@@ -34,7 +32,7 @@ df_user_input.loc[df_user_input['Value'] == 'HYBRID', 'Value']              = 'P
 df_user_input.loc[df_user_input['Value'] == '144A', 'Value']                = 'SEC_REGISTERED'
 df_user_input.loc[df_user_input['Field'].eq('ISSUER RATINGS') & df_user_input['Value'].eq('NR'), 'Value'] = 'N/A'
 
-#print (df_user_input)
+print (df_user_input)
 
 dict_user_input         = df_user_input.set_index('Field')['Value'].to_dict()
 
@@ -155,7 +153,6 @@ user_input_scaled_tenor_list        = user_input_scaled_tenor.tolist()
 user_input_scaled_tenor_list_2D     = [user_input_scaled_tenor_list] 
 
 
-
 df_sdbondstatic             = pd.read_csv(model_training_input+'sdbondstatic_input.csv', keep_default_na=False)
 dict_nickname               = df_sdbondstatic.set_index('_id')['nickname'].to_dict()
 dict_ticker                 = df_sdbondstatic.set_index('_id')['issuer_ticker'].to_dict()
@@ -163,8 +160,7 @@ df_final_user_input         = pd.DataFrame(user_input_scaled_tenor_list_2D)
 df_final_user_input.columns = df_sdbondstatic.columns[3:]
 
 
-
-numeric_scale_1 = 0.8
+numeric_scale_1 = 0.75
 df_final_user_input['bond_age']        = df_final_user_input['bond_age'] * numeric_scale_1
 
 numeric_scale_2 = 5.0
@@ -173,25 +169,14 @@ df_final_user_input['rating_map']      = df_final_user_input['rating_map'] * num
 numeric_scale_3 = 3.0
 df_final_user_input['product_map']     = df_final_user_input['product_map'] * numeric_scale_3
 
-numeric_scale_4 = 1.5
+numeric_scale_4 = 2.5
 df_final_user_input['fi_corp_sov_map'] = df_final_user_input['fi_corp_sov_map'] * numeric_scale_4
 
 
 
-#==============================================================================
-# header_important  = []
-# header_medium     = []
-# header_low        = []
-# 
-# header_important  = list(set(df_user_input.loc[df_user_input['Importance'] == 'HIGH']['Field']))
-# header_medium     = list(set(df_user_input.loc[df_user_input['Importance'] == 'MEDIUM']['Field']))
-# header_low        = list(set(df_user_input.loc[df_user_input['Importance'] == 'LOW']['Field']))
-#==============================================================================
-
-
-header_important = ['TENOR', 'CURRENCY', 'ISSUER COUNTRY', 'ISSUER RATINGS']
-header_medium    = ['ISSUER REGION', 'BASEL CLASSIFICATION', 'ISSUER TYPE', 'SPECIAL CLASSIFICATION', 'RATING TYPE', 'INDUSTRY', 'COUPON TYPE', 'INDUSTRY SECTOR']
-header_low       = ['RANKING', 'MATURITY TYPE']
+header_important = ['TENOR', 'CURRENCY', 'ISSUER COUNTRY', 'RATING TYPE' ]
+header_medium    = ['ISSUER REGION', 'BASEL CLASSIFICATION',  'SPECIAL CLASSIFICATION','ISSUER TYPE', 'ISSUER RATINGS', 'COUPON TYPE', 'INDUSTRY SECTOR']
+header_low       = ['RANKING', 'MATURITY TYPE', 'INDUSTRY']
 
 
 dict_col_header = {
@@ -392,13 +377,8 @@ df_join_final           = df_join_final.sort_values(by='distance')
 df_join_final.columns   = ['security', 'distance']
 
 
-score_scaler                = MinMaxScaler()
-scaled_dist                 = score_scaler.fit_transform(numpy.array(df_join_final['distance']).reshape(len(df_join_final['distance']) ,1))
-df_join_final['distance']   = scaled_dist
-df_join_final               = df_join_final.round(5)
 
-
-df_sdbondstatic_ori         = pd.read_csv(model_training_input+'sdbondstatic_original.csv', keep_default_na=False)
+df_sdbondstatic_ori     = pd.read_csv(model_training_input+'sdbondstatic_original.csv', keep_default_na=False)
 
 cols_used    = ['nickname',
                 'issuer_ticker',
@@ -437,7 +417,7 @@ if RANKING == 'SENIOR':
     df_sdbondstatic_ori_dedup = df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['basel_classification'] != 'TIER 1']
 
 
-df_sdbondstatic_ori_dedup['res_mat_diff_abs'] = (df_sdbondstatic_ori_dedup['res_maturity'] - TENOR).abs()
+df_sdbondstatic_ori_dedup['res_mat_diff_abs'] = round((df_sdbondstatic_ori_dedup['res_maturity'] - TENOR).abs(),5)
 
 def create_day_diff(row):
     if len(row['issue_date']) == 10:
@@ -452,190 +432,40 @@ def create_day_diff(row):
     else:
         return 0
 
-df_sdbondstatic_ori_dedup['day_diff'] = df_sdbondstatic_ori_dedup.apply (lambda row: create_day_diff(row), axis=1)
+df_sdbondstatic_ori_dedup['day_diff'] = df_sdbondstatic_ori_dedup.apply(lambda row: create_day_diff(row), axis=1)
 
 
-df_sdbondstatic_ori_dedup_top = df_sdbondstatic_ori_dedup.loc[(df_sdbondstatic_ori_dedup['issuer_ticker'] == ISSUER_TICKER) & (df_sdbondstatic_ori_dedup['currency'] == CURRENCY) & (df_sdbondstatic_ori_dedup['ranking'] == RANKING)]
-df_sdbondstatic_ori_dedup_top = df_sdbondstatic_ori_dedup_top.sort_values(by=['res_mat_diff_abs', 'deal_size_mil','day_diff'], ascending=[True, False, True])
+df_sdbondstatic_ori_dedup_top   = df_sdbondstatic_ori_dedup.loc[(df_sdbondstatic_ori_dedup['issuer_ticker'] == ISSUER_TICKER) & (df_sdbondstatic_ori_dedup['currency'] == CURRENCY) & (df_sdbondstatic_ori_dedup['ranking'] == RANKING)]
+df_sdbondstatic_ori_dedup_top   = df_sdbondstatic_ori_dedup_top.sort_values(by=['res_mat_diff_abs', 'deal_size_mil','day_diff'], ascending=[True, False, True])
+df_sdbondstatic_ori_dedup_top_3 = df_sdbondstatic_ori_dedup_top.iloc[ :3 , :]
+df_sdbondstatic_ori_dedup_top_3 = df_sdbondstatic_ori_dedup_top_3.rename(columns={'nickname': 'security'})
 
 
-df_sdbondstatic_ori_dedup_top = df_sdbondstatic_ori_dedup_top.iloc[ :3 , :]
+df_join_final = df_join_final[~df_join_final['security'].isin(df_sdbondstatic_ori_dedup_top['nickname'])]
+df_join_final = df_join_final[df_join_final['security'].isin(df_sdbondstatic_ori_dedup['nickname'])]
+
+df_join_final = df_join_final.iloc[:(20-len(df_sdbondstatic_ori_dedup_top_3)), :]
 
 
-for i in range(len(df_join_final)):
-    nickname = str(df_join_final.iloc[i,0]).upper().strip()
-    print (nickname)
-    if nickname not in df_sdbondstatic_ori_dedup_top['nickname'] and nickname in df_sdbondstatic_ori_dedup['nickname']:
-        print (nickname)
+list_deal_size  = []
+list_issue_date = []
+
+for each_sec in df_join_final['security']:
+    list_deal_size.append(float(df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['nickname'] == each_sec]['deal_size_mil']))
+    list_issue_date.append(float(df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['nickname'] == each_sec]['day_diff']))
+
+df_join_final['size'] = pd.Series(list_deal_size).values
+df_join_final['date'] = pd.Series(list_issue_date).values
+
+df_join_final = df_join_final.sort_values(by=['distance','size','date'], ascending=[True, False, True])
+df_join_final = df_join_final[['security']]
+
+if len(df_sdbondstatic_ori_dedup_top_3) > 0:
+    df_top_3      = df_sdbondstatic_ori_dedup_top_3[['security']]
+    df_join_final = df_top_3.append(df_join_final, ignore_index = True) 
+     
     
-
-
-
-
-
-
-
-
-list_final_output = []
-
-for i in range(len(df_join_final)):
-    one_row  = []
-    nickname = str(df_join_final.iloc[i,0]).upper().strip()
-    distance = df_join_final.iloc[i,1]
-    one_row.append(nickname)
-    one_row.append(distance)
-    one_row  = one_row + df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['nickname'] == nickname].iloc[:, 1:].values.tolist()[0]
-    list_final_output.append(one_row)
-
-
-df_final_output         = pd.DataFrame(list_final_output)
-cols_used.insert(1,'Distance')
-df_final_output.columns = cols_used
-dict_rename             = {'nickname':'Nickname'}
-
-
-if 'ISSUER COUNTRY' in header_important:
-    dict_rename['country'] = 'Issuer_Country_H'
-elif 'ISSUER COUNTRY' in header_medium:
-    dict_rename['country'] = 'Issuer_Country_M'
-else:
-    dict_rename['country'] = 'Issuer_Country_L'
-
-if 'CURRENCY' in header_important:
-    dict_rename['currency'] = 'Currency_H'
-elif 'CURRENCY' in header_medium:
-    dict_rename['currency'] = 'Currency_M'
-else:
-    dict_rename['currency'] = 'Currency_L'  
-    
-if 'TENOR' in header_important:
-    dict_rename['res_maturity'] = 'Tenor_H'
-elif 'TENOR' in header_medium:
-    dict_rename['res_maturity'] = 'Tenor_M'
-else:
-    dict_rename['res_maturity'] = 'Tenor_L'     
-    
-if 'ISSUER TICKER' in header_important:
-    dict_rename['issuer_ticker'] = 'Issuer_Ticker_H'
-elif 'ISSUER TICKER' in header_medium:
-    dict_rename['issuer_ticker'] = 'Issuer_Ticker_M'
-else:
-    dict_rename['issuer_ticker'] = 'Issuer_Ticker_L'         
-    
-if 'ISSUER REGION' in header_important:
-    dict_rename['region'] = 'Issuer_Region_H'
-elif 'ISSUER REGION' in header_medium:
-    dict_rename['region'] = 'Issuer_Region_M'
-else:
-    dict_rename['region'] = 'Issuer_Region_L'         
-    
-if 'BASEL CLASSIFICATION' in header_important:
-    dict_rename['basel_classification'] = 'Basel_Classification_H'
-elif 'BASEL CLASSIFICATION' in header_medium:
-    dict_rename['basel_classification'] = 'Basel_Classification_M'
-else:
-    dict_rename['basel_classification'] = 'Basel_Classification_L'   
-
-if 'ISSUER TYPE' in header_important:
-    dict_rename['type_le'] = 'Issuer_Type_H'
-elif 'ISSUER TYPE' in header_medium:
-    dict_rename['type_le'] = 'Issuer_Type_M'
-else:
-    dict_rename['type_le'] = 'Issuer_Type_L'   
-
-if 'RATING TYPE' in header_important:
-    dict_rename['rating_type'] = 'Rating_Type_H'
-elif 'RATING TYPE' in header_medium:
-    dict_rename['rating_type'] = 'Rating_Type_M'
-else:
-    dict_rename['rating_type'] = 'Rating_Type_L'   
-
-if 'SPECIAL CLASSIFICATION' in header_important:
-    dict_rename['special_classification'] = 'Special_Classification_H'
-elif 'SPECIAL CLASSIFICATION' in header_medium:
-    dict_rename['special_classification'] = 'Special_Classification_M'
-else:
-    dict_rename['special_classification'] = 'Special_Classification_L'  
-
-if 'INDUSTRY SECTOR' in header_important:
-    dict_rename['bbg_industry_sector'] = 'Industry_Sector_H'
-elif 'INDUSTRY SECTOR' in header_medium:
-    dict_rename['bbg_industry_sector'] = 'Industry_Sector_M'
-else:
-    dict_rename['bbg_industry_sector'] = 'Industry_Sector_L'  
-
-if 'DISTRIBUTION TYPE' in header_important:
-    dict_rename['distribution_type'] = 'Distribution_Type_H'
-elif 'DISTRIBUTION TYPE' in header_medium:
-    dict_rename['distribution_type'] = 'Distribution_Type_M'
-else:
-    dict_rename['distribution_type'] = 'Distribution_Type_L'  
-
-if 'DEAL SIZE MIL' in header_important:
-    dict_rename['deal_size_mil'] = 'Deal_Size_H'
-elif 'DEAL SIZE MIL' in header_medium:
-    dict_rename['deal_size_mil'] = 'Deal_Size_M'
-else:
-    dict_rename['deal_size_mil'] = 'Deal_Size_L'  
-
-if 'MATURITY TYPE' in header_important:
-    dict_rename['maturity_type'] = 'Maturity_Type_H'
-elif 'MATURITY TYPE' in header_medium:
-    dict_rename['maturity_type'] = 'Maturity_Type_M'
-else:
-    dict_rename['maturity_type'] = 'Maturity_Type_L'  
-
-if 'COUPON TYPE' in header_important:
-    dict_rename['coupon_type'] = 'Coupon_Type_H'
-elif 'COUPON TYPE' in header_medium:
-    dict_rename['coupon_type'] = 'Coupon_Type_M'
-else:
-    dict_rename['coupon_type'] = 'Coupon_Type_L'  
-
-if 'COUPON RATE' in header_important:
-    dict_rename['coupon_rate'] = 'Coupon_Rate_H'
-elif 'COUPON RATE' in header_medium:
-    dict_rename['coupon_rate'] = 'Coupon_Rate_M'
-else:
-    dict_rename['coupon_rate'] = 'Coupon_Rate_L'  
-
-if 'INDUSTRY' in header_important:
-    dict_rename['bbg_industry_group'] = 'Industry_H'
-elif 'INDUSTRY' in header_medium:
-    dict_rename['bbg_industry_group'] = 'Industry_M'
-else:
-    dict_rename['bbg_industry_group'] = 'Industry_L'  
-
-if 'ISSUER RATINGS' in header_important:
-    dict_rename['issuer_rating'] = 'Issuer_Rating_H'
-elif 'ISSUER RATINGS' in header_medium:
-    dict_rename['issuer_rating'] = 'Issuer_Rating_M'
-else:
-    dict_rename['issuer_rating'] = 'Issuer_Rating_L'  
-
-if 'RANKING' in header_important:
-    dict_rename['ranking'] = 'Ranking_H'
-elif 'RANKING' in header_medium:
-    dict_rename['ranking'] = 'Ranking_M'
-else:
-    dict_rename['ranking'] = 'Ranking_L'  
-
-
-df_final_output = df_final_output.rename(columns=dict_rename)
-
-
-
-
-
-df_final_output.to_csv(model_output + 'predicted_securities.csv',index=False)
-
-
-
-
-
- 
-
-
+print (df_join_final)
 
 
 

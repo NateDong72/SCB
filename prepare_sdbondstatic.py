@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import os
-import numpy
 import pickle
 import pandas as pd
 from pymongo import MongoClient
@@ -28,7 +27,6 @@ df_sdbondstatic         = df_sdbondstatic[df_sdbondstatic['bbg_industry_sector']
 
 df_sdbondstatic         = df_sdbondstatic.apply(lambda x: x.str.upper() if (x.dtype == 'object') else x)
 df_sdbondstatic         = df_sdbondstatic.apply(lambda x: x.str.strip() if (x.dtype == 'object') else x)
-
 
 
 df_sdbondstatic.loc[df_sdbondstatic['basel_classification']   == 'DATA NOT AVAILABLE', 'basel_classification']    = 'N/A'
@@ -162,7 +160,7 @@ df_final                = pd.concat([df_one_hot_encoded.iloc[: ,:4], df_scaled],
 
 
 
-numeric_scale_1 = 0.8
+numeric_scale_1 = 0.75
 df_final['bond_age']        = df_final['bond_age'] * numeric_scale_1
 
 numeric_scale_2 = 5.0
@@ -171,7 +169,7 @@ df_final['rating_map']      = df_final['rating_map'] * numeric_scale_2
 numeric_scale_3 = 3.0
 df_final['product_map']     = df_final['product_map'] * numeric_scale_3
 
-numeric_scale_4 = 1.5
+numeric_scale_4 = 2.5
 df_final['fi_corp_sov_map'] = df_final['fi_corp_sov_map'] * numeric_scale_4
 
 

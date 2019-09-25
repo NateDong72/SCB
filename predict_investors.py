@@ -4,6 +4,8 @@ import sys
 import math
 import numpy
 import pickle
+import statistics
+import numpy as np
 import pandas as pd
 from scipy.spatial import distance
 
@@ -12,7 +14,7 @@ from scipy.spatial import distance
 os.chdir(os.path.dirname(__file__))
 
 model_training_input    = '../model_input/training_input/'
-user_input              = '../model_input/user_input/ICBCAS.csv'
+user_input              = '../model_input/user_input/KWGPRO.csv'
 model_output            = '../model_output/predicted_investors/'
 
 df_user_input           = pd.read_csv(user_input, delimiter = '|',encoding = "ISO-8859-1", keep_default_na=False)
@@ -28,7 +30,7 @@ df_user_input.loc[df_user_input['Value'] == '', 'Value']                    = 'N
 df_user_input.loc[df_user_input['Value'] == 'HYBRID', 'Value']              = 'PERP'
 df_user_input.loc[df_user_input['Value'] == '144A', 'Value']                = 'SEC_REGISTERED'
 df_user_input.loc[df_user_input['Field'].eq('ISSUER RATINGS') & df_user_input['Value'].eq('NR'), 'Value'] = 'N/A'
-df_user_input.loc[df_user_input['Field'].eq('ISSUER TYPE') & df_user_input['Value'].eq('SUPRA'), 'Value'] = 'SOV'
+#df_user_input.loc[df_user_input['Field'].eq('ISSUER TYPE') & df_user_input['Value'].eq('SUPRA'), 'Value'] = 'SOV'
 
 print (df_user_input[['Field','Value']])
 
@@ -66,8 +68,8 @@ df_detailbonds_original['special_caracters']    = df_detailbonds_original['speci
 df_detailbonds_original['currency']             = df_detailbonds_original['currency'].str.upper() 
 
 
-df_detailbonds_original_day_diff = df_detailbonds_original.groupby(['investor_name'])['day_diff'].min()
-df_detailbonds_original_day_diff = df_detailbonds_original_day_diff.reset_index()
+df_detailbonds_original_day_diff         = df_detailbonds_original.groupby(['investor_name'])['day_diff'].min()
+df_detailbonds_original_day_diff         = df_detailbonds_original_day_diff.reset_index()
 df_detailbonds_original_day_diff.columns = ['investor_name','recent']
 df_detailbonds_original_day_diff         = df_detailbonds_original_day_diff[df_detailbonds_original_day_diff['recent'] <= 366]
 df_detailbonds_original_filtered         = df_detailbonds_original.loc[df_detailbonds_original['investor_name'].isin(set(df_detailbonds_original_day_diff['investor_name']))]
@@ -75,59 +77,30 @@ df_detailbonds_original_filtered         = df_detailbonds_original.loc[df_detail
 df_detailbonds_original_filtered = df_detailbonds_original_filtered.loc[df_detailbonds_original_filtered['currency'] == CURRENCY]
 
 
-special     = False
-rating_type = False
-basel       = False
-#issuer_type = False
-
 
 if SPECIAL_CLASSIFICATION != 'N/A':
-    special = True
     df_detailbonds_original_filtered = df_detailbonds_original_filtered.loc[df_detailbonds_original_filtered['special_caracters'] == SPECIAL_CLASSIFICATION]
 
 if RATING_TYPE != 'N/A':
-    rating_type = True
     df_detailbonds_original_filtered = df_detailbonds_original_filtered.loc[df_detailbonds_original_filtered['product'] == RATING_TYPE]
 
 if ISSUER_TYPE == 'FI' and BASEL_CLASSIFICATION != 'N/A':
-    basel = True
     df_detailbonds_original_filtered = df_detailbonds_original_filtered.loc[(df_detailbonds_original_filtered['basel_classification'] == BASEL_CLASSIFICATION) & (df_detailbonds_original_filtered['fi_corp_sov'] == ISSUER_TYPE)]
 
-
-#==============================================================================
-# 
-# if SPECIAL_CLASSIFICATION == 'N/A' and CURRENCY == 'USD' and RATING_TYPE != 'CROSSOVER' and basel == False:
-#     df_detailbonds_original_filtered = df_detailbonds_original_filtered.loc[df_detailbonds_original_filtered['fi_corp_sov'] == ISSUER_TYPE]
-# 
-#     
-#==============================================================================
-    
 
 df_detailbonds_original_filtered_sum = df_detailbonds_original_filtered.groupby(['investor_name'])['allocated'].agg('sum')
 df_detailbonds_original_filtered_sum = df_detailbonds_original_filtered_sum.reset_index()
 df_detailbonds_original_filtered_sum.columns = ['investor_name', 'allocated_sum']
 df_detailbonds_original_filtered_sum = df_detailbonds_original_filtered_sum.sort_values(['allocated_sum'], ascending = False)
 
-df_investors_pool                    = df_detailbonds_original_filtered_sum.iloc[ :int(len(df_detailbonds_original_filtered_sum)*1) , :]
 
-
-
-if special:
-    if basel and RATING_TYPE in ('HY', 'CROSSOVER'):
-        df_investors_first_filter = df_investors_pool.iloc[ :85, :]
-    elif basel or RATING_TYPE in ('HY', 'CROSSOVER'):
-        df_investors_first_filter = df_investors_pool.iloc[ :80, :]
-    else:
-        df_investors_first_filter = df_investors_pool.iloc[ :75, :]
+if RATING_TYPE == 'HY' and SPECIAL_CLASSIFICATION == 'N/A':
+    df_investors_top                 = df_detailbonds_original_filtered_sum.iloc[ :35, :]
 else:
-    if basel and RATING_TYPE in ('HY', 'CROSSOVER'):
-        df_investors_first_filter = df_investors_pool.iloc[ :30, :]
-    else:
-        df_investors_first_filter = df_investors_pool.iloc[ :20, :]
+    df_investors_top                 = df_detailbonds_original_filtered_sum.iloc[ :5, :]
 
 
-print (df_investors_first_filter)
-       
+      
 user_input_cat = []
 user_input_num = []
 
@@ -240,8 +213,8 @@ df_final_user_input['product_map']      = df_final_user_input['product_map'] * n
 if CURRENCY == 'USD':
     if ISSUER_COUNTRY == 'SINGAPORE':
         header_important = ['CURRENCY', 'ISSUER TICKER','ISSUER COUNTRY']
-        header_medium    = ['TENOR','ISSUER REGION', 'BASEL CLASSIFICATION', 'SPECIAL CLASSIFICATION','RATING TYPE']
-        header_low       = ['RANKING', 'MATURITY TYPE','DISTRIBUTION TYPE', 'INDUSTRY', 'INDUSTRY SECTOR', 'ISSUER RATINGS', 'COUPON TYPE','ISSUER TYPE']
+        header_medium    = ['TENOR', 'BASEL CLASSIFICATION', 'SPECIAL CLASSIFICATION','RATING TYPE']
+        header_low       = ['RANKING', 'ISSUER TYPE','ISSUER REGION','MATURITY TYPE','DISTRIBUTION TYPE', 'INDUSTRY', 'INDUSTRY SECTOR', 'ISSUER RATINGS', 'COUPON TYPE']
     else:
         header_important = ['CURRENCY', 'ISSUER TICKER','RATING TYPE','ISSUER TYPE', 'SPECIAL CLASSIFICATION']
         header_medium    = ['TENOR','ISSUER REGION', 'BASEL CLASSIFICATION', 'INDUSTRY', 'COUPON TYPE', 'INDUSTRY SECTOR', 'ISSUER RATINGS']
@@ -249,20 +222,15 @@ if CURRENCY == 'USD':
     
 else:
     if ISSUER_COUNTRY == 'SINGAPORE':
-        header_important = ['CURRENCY', 'ISSUER TICKER','ISSUER COUNTRY']
-        header_medium    = ['TENOR','ISSUER REGION', 'BASEL CLASSIFICATION', 'SPECIAL CLASSIFICATION','RATING TYPE']
+        header_important = ['CURRENCY', 'ISSUER COUNTRY']
+        header_medium    = ['ISSUER TICKER','TENOR','ISSUER REGION', 'BASEL CLASSIFICATION', 'SPECIAL CLASSIFICATION','RATING TYPE']
         header_low       = ['RANKING', 'MATURITY TYPE','DISTRIBUTION TYPE', 'INDUSTRY', 'INDUSTRY SECTOR', 'ISSUER RATINGS', 'COUPON TYPE','ISSUER TYPE']
-    
-    
-    
     else:
-        header_important = ['CURRENCY', 'RATING TYPE', 'SPECIAL CLASSIFICATION']
-        header_medium    = ['ISSUER TYPE','ISSUER TICKER','TENOR','ISSUER REGION', 'BASEL CLASSIFICATION', 'INDUSTRY', 'COUPON TYPE', 'INDUSTRY SECTOR', 'ISSUER RATINGS']
-        header_low       = ['RANKING', 'MATURITY TYPE','DISTRIBUTION TYPE','ISSUER COUNTRY']
+        header_important = ['CURRENCY']
+        header_medium    = ['ISSUER TICKER','RATING TYPE', 'SPECIAL CLASSIFICATION','ISSUER TYPE','TENOR','ISSUER REGION', 'BASEL CLASSIFICATION', 'COUPON TYPE', 'INDUSTRY SECTOR']
+        header_low       = ['RANKING', 'MATURITY TYPE','DISTRIBUTION TYPE','ISSUER COUNTRY', 'ISSUER RATINGS','INDUSTRY']
     
     
-
-
 
 dict_col_header = {
                     'bond':'TENOR',
@@ -369,10 +337,12 @@ if (len(cols_low) != 0):
     df_similaity_third         = df_similaity_third.sort_values(by='similarity_3rd')
 
 
-
-first_weight    =   3.0
-second_weight   =   2.0
-third_weight    =   1.0
+if CURRENCY == 'USD':
+    first_weight = 3.0
+else:
+    first_weight = 4.0
+second_weight    = 2.0
+third_weight     = 1.0
 
 if (len(cols_important) != 0 and len(cols_medium) != 0 and len(cols_low) != 0):
     df_join             = pd.merge(pd.merge(df_similaity_first, df_similaity_second,on='security', how='inner'),df_similaity_third, on='security', how='inner')
@@ -427,38 +397,37 @@ df_join_final = df_join_final.groupby(['security'])['distance'].min().reset_inde
 df_join_final           = df_join_final.sort_values(by='distance') 
 df_top_security         = df_join_final.loc[df_join_final['distance'] <= 1.0]
 
-if len(df_top_security) >= 5:
-    df_top_security = df_top_security.iloc[ :5 , :]
+if len(df_top_security) >= 6:
+    df_top_security = df_top_security.iloc[ :6 , :]
 else:
-    df_top_security = df_join_final.iloc[ :4, :]
+    df_top_security = df_join_final.iloc[ :5, :]
 
 print (df_top_security)
 
 
 
-
-# create local and global frequency dataframe
+# create local frequency dataframe
 df_detailbonds_all_transactions         = pd.read_csv(model_training_input+'detailbonds_all_transactions.csv', keep_default_na=False)
 df_detailbonds_all_transactions_dedup   = df_detailbonds_all_transactions[['investor_name','security']].drop_duplicates()
 df_investor_name_count_global_freq      = df_detailbonds_all_transactions_dedup['investor_name'].value_counts().rename_axis('investor_name').reset_index(name='count')
 
+dict_investor_country                   = df_detailbonds_all_transactions.set_index('investor_name')['investor_country'].to_dict()
 
 df_investor_pool_withdup                = df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['security'].isin(df_top_security['security'])][['security','investor_name']]
 df_investor_pool_dedup                  = df_investor_pool_withdup.drop_duplicates()
 df_investor_name_count_local_freq       = df_investor_pool_dedup['investor_name'].value_counts().rename_axis('investor_name').reset_index(name='count')
 
 
-dict_investor_country                   = df_detailbonds_all_transactions.set_index('investor_name')['investor_country'].to_dict()
 
-
-df_detailbonds_all_transactions_amount          = df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['deal_size_mil'] != 0]
+df_detailbonds_all_transactions_amount          = df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['deal_size_mil'] > 0]
 df_detailbonds_all_transactions_amount          = df_detailbonds_all_transactions_amount.loc[df_detailbonds_all_transactions_amount['allocated'] > 0]
 df_detailbonds_all_transactions_amount          = df_detailbonds_all_transactions_amount.groupby(['security', 'investor_name']).agg({'deal_size_mil':'max','allocated':'sum'}).reset_index()
 df_detailbonds_all_transactions_amount['ratio'] = df_detailbonds_all_transactions_amount['allocated'] / df_detailbonds_all_transactions_amount['deal_size_mil']
 df_allocation_ratio                             = df_detailbonds_all_transactions_amount.loc[df_detailbonds_all_transactions_amount['ratio'] < 1.0]
 
 
-df_allocation_percentage                        = df_detailbonds_all_transactions.groupby(['security', 'investor_name'])['firm','allocated'].agg('sum').reset_index()
+df_allocation_percentage                        = df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['firm'] > 0]
+df_allocation_percentage                        = df_allocation_percentage.groupby(['security', 'investor_name'])['firm','allocated'].agg('sum').reset_index()
 df_allocation_percentage['percentage']          = df_allocation_percentage['allocated'] / df_allocation_percentage['firm']
 
 
@@ -468,18 +437,18 @@ investors_highest_similarity_security           = set(df_investor_pool_withdup_h
 
 
 
-
-local_freq_threshold                            = len(df_top_security) - 1
+local_freq_threshold                            = len(df_top_security) - 2
 investors_selected_high_local_freq              = set(df_investor_name_count_local_freq.loc[df_investor_name_count_local_freq['count'] >= local_freq_threshold]['investor_name'])
 
-investors_selected_high_local_freq = investors_selected_high_local_freq - (investors_selected_high_local_freq - set(df_detailbonds_original_filtered_sum['investor_name']))
+  
+selected_investors                              = investors_selected_high_local_freq | set(df_investors_top['investor_name'])
 
-if len(investors_selected_high_local_freq | set(df_investors_first_filter['investor_name'])) > 90:
-    local_freq_threshod                         = len(df_top_security) 
-    investors_selected_high_local_freq          = set(df_investor_name_count_local_freq.loc[df_investor_name_count_local_freq['count'] >= local_freq_threshold]['investor_name'])
 
-    
-selected_investors = investors_selected_high_local_freq | set(df_investors_first_filter['investor_name'])
+if len(selected_investors) > 80:
+    local_freq_threshold                            = len(df_top_security) - 1
+    investors_selected_high_local_freq              = set(df_investor_name_count_local_freq.loc[df_investor_name_count_local_freq['count'] >= local_freq_threshold]['investor_name'])
+          
+    selected_investors                              = investors_selected_high_local_freq | set(df_investors_top['investor_name'])
 
 
 rest_potential_investors = set(df_investor_name_count_local_freq['investor_name']) - selected_investors
@@ -490,78 +459,80 @@ list_investor_score_2nd_group = []
 for each_investor in rest_potential_investors:
     
     local_freq      = int(df_investor_name_count_local_freq.loc[df_investor_name_count_local_freq['investor_name'] == each_investor]['count'])
-    global_freq     = int(df_investor_name_count_global_freq.loc[df_investor_name_count_global_freq['investor_name'] == each_investor]['count'])
-
-    final_score = local_freq * math.log10(global_freq)
-        
-    if each_investor in investors_highest_similarity_security:
-        final_score = final_score * 1.5
     
+    if local_freq <= 2 and each_investor not in set(df_detailbonds_original_filtered_sum['investor_name']):
+        pass
+    else:
+        global_freq     = int(df_investor_name_count_global_freq.loc[df_investor_name_count_global_freq['investor_name'] == each_investor]['count'])
     
-    if each_investor in dict_investor_country:
-        if dict_investor_country[each_investor] != 'N/A':
-            if ISSUER_COUNTRY == dict_investor_country[each_investor].upper():
-                final_score = final_score * 1.2
-      
-  
-    
-    if each_investor in dict_investor_country:
-        if CURRENCY == 'GBP' and dict_investor_country[each_investor].upper() == 'UNITED KINGDOM':
-            final_score = final_score * 1.2
+        final_score = local_freq * math.log(global_freq,18)
             
-        if CURRENCY == 'SGD' and dict_investor_country[each_investor].upper() in ('HONG KONG', 'SINGAPORE'):
-            final_score = final_score * 1.2
-         
-        if CURRENCY == 'AUD' and dict_investor_country[each_investor].upper() == 'AUSTRALIA':
-            final_score = final_score * 1.2 
+        if each_investor in investors_highest_similarity_security:
+            final_score = final_score * 1.5
         
-        if CURRENCY == 'HKD' and dict_investor_country[each_investor].upper() in ('HONG KONG', 'SINGAPORE'):
-            final_score = final_score * 1.2
         
-        if CURRENCY == 'EUR' and dict_investor_country[each_investor].upper() in ('UNITED KINGDOM','SWITZERLAND','GERMANY','FRANCE'):
-            final_score = final_score * 1.2
-    
-               
-    
-    
-    df_investor_allocation_percentage     = df_allocation_percentage.loc[df_allocation_percentage['investor_name'] == each_investor]
-    df_top_security_allocation_percentage = df_investor_allocation_percentage.loc[df_investor_allocation_percentage['security'].isin(df_top_security['security'])]
-       
-    mean_allocation_percentage = 0
-    
-    if (len(df_top_security_allocation_percentage) > 0):
-        mean_allocation_percentage = df_top_security_allocation_percentage['percentage'].mean()
-    
-    if (mean_allocation_percentage >= 0.5):
-        final_score = final_score * 1.5
-    elif (mean_allocation_percentage >= 0.3 and mean_allocation_percentage < 0.5):
-        final_score = final_score * 1.2  
+        if each_investor in dict_investor_country:
+            if dict_investor_country[each_investor] != 'N/A':
+                if ISSUER_COUNTRY == dict_investor_country[each_investor].upper():
+                    final_score = final_score * 1.2
+          
+      
         
+        if each_investor in dict_investor_country:
+            if CURRENCY == 'GBP' and dict_investor_country[each_investor].upper() == 'UNITED KINGDOM':
+                final_score = final_score * 1.2
+                
+            if CURRENCY == 'SGD' and dict_investor_country[each_investor].upper() in ('HONG KONG', 'SINGAPORE'):
+                final_score = final_score * 1.2
+             
+            if CURRENCY == 'AUD' and dict_investor_country[each_investor].upper() == 'AUSTRALIA':
+                final_score = final_score * 1.2 
+            
+            if CURRENCY == 'HKD' and dict_investor_country[each_investor].upper() in ('HONG KONG', 'SINGAPORE'):
+                final_score = final_score * 1.2
+            
+            if CURRENCY == 'EUR' and dict_investor_country[each_investor].upper() in ('UNITED KINGDOM','SWITZERLAND','GERMANY','FRANCE'):
+                final_score = final_score * 1.2
+        
+                   
+        
+        
+        df_investor_allocation_percentage     = df_allocation_percentage.loc[df_allocation_percentage['investor_name'] == each_investor]
+        df_top_security_allocation_percentage = df_investor_allocation_percentage.loc[df_investor_allocation_percentage['security'].isin(df_top_security['security'])]
            
+        mean_allocation_percentage = 0
         
-              
-    df_investor_allocation_ratio     = df_allocation_ratio.loc[df_allocation_ratio['investor_name'] == each_investor]
-    df_top_security_allocation_ratio = df_investor_allocation_ratio.loc[df_investor_allocation_ratio['security'].isin(df_top_security['security'])]
-    
-    mean_allocation_ratio = 0
-   
-    if (len(df_top_security_allocation_ratio) > 0):
-        mean_allocation_ratio = df_top_security_allocation_ratio['ratio'].mean()
-    if (mean_allocation_ratio >= 0.015):
-        final_score = final_score * 1.5
+        if (len(df_top_security_allocation_percentage) > 0):
+            mean_allocation_percentage = df_top_security_allocation_percentage['percentage'].mean()
         
+        if (mean_allocation_percentage >= 0.5):
+            final_score = final_score * 1.5
+        elif (mean_allocation_percentage >= 0.35 and mean_allocation_percentage < 0.5):
+            final_score = final_score * 1.2  
+            
+               
+            
+                  
+        df_investor_allocation_ratio     = df_allocation_ratio.loc[df_allocation_ratio['investor_name'] == each_investor]
+        df_top_security_allocation_ratio = df_investor_allocation_ratio.loc[df_investor_allocation_ratio['security'].isin(df_top_security['security'])]
+        
+        mean_allocation_ratio = 0
        
+        if (len(df_top_security_allocation_ratio) > 0):
+            mean_allocation_ratio = df_top_security_allocation_ratio['ratio'].mean()
+        if (mean_allocation_ratio >= 0.015):
+            final_score = final_score * 1.5
+            
+           
+                    
+        if float(local_freq)/global_freq >= 0.05:
+            final_score = final_score * 1.2
         
         
-    if float(local_freq)/global_freq >= 0.05:
-        final_score = final_score * 1.2
-    
-    
-    one_list  = []
-    one_list.append(each_investor)
-    one_list.append(round(final_score, 5))
-    list_investor_score_2nd_group.append(one_list)
-
+        one_list  = []
+        one_list.append(each_investor)
+        one_list.append(round(final_score, 5))
+        list_investor_score_2nd_group.append(one_list)
 
 
 
@@ -570,29 +541,111 @@ df_investor_score_2nd_group.columns  = ['investor name','score']
 df_investor_score_2nd_group          = df_investor_score_2nd_group.sort_values(by='score', ascending  = False)
 
 
-df_investor_score_2nd_group = df_investor_score_2nd_group.loc[df_investor_score_2nd_group['investor name'].isin(set(df_detailbonds_original_filtered_sum['investor_name']))]
+rest_selected_investors              = df_investor_score_2nd_group.iloc[ :100-len(selected_investors) , :]
 
-
-rest_selected_investors     = df_investor_score_2nd_group.iloc[ :100-len(selected_investors), :]
-
-
-
-
- 
-final_selected_investors    = selected_investors | set(rest_selected_investors['investor name'])
+final_selected_investors             = selected_investors | set(rest_selected_investors['investor name'])
  
 
 
+df_detailbonds_all_transactions_firm_amount          = df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['deal_size_mil'] > 0]
+df_detailbonds_all_transactions_firm_amount          = df_detailbonds_all_transactions_firm_amount.loc[df_detailbonds_all_transactions_firm_amount['firm'] > 0]
+df_detailbonds_all_transactions_firm_amount          = df_detailbonds_all_transactions_firm_amount.groupby(['security', 'investor_name']).agg({'deal_size_mil':'max','firm':'sum'}).reset_index()
+df_detailbonds_all_transactions_firm_amount['ratio'] = df_detailbonds_all_transactions_firm_amount['firm'] / df_detailbonds_all_transactions_firm_amount['deal_size_mil']
+df_firm_ratio                                        = df_detailbonds_all_transactions_firm_amount.loc[df_detailbonds_all_transactions_firm_amount['ratio'] < 1.0]
+df_firm_ratio                                        = df_firm_ratio[['security', 'investor_name', 'ratio']]
+
+
+
+set_top_security       = set(df_top_security['security'])
+
+df_firm_ratio_distance = pd.merge(df_firm_ratio, df_join_final, on='security', how='left')
+
+df_firm_ratio_distance = df_firm_ratio_distance.sort_values(by='distance')
 
 
 
 
 
+df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['investor_type'] == 'BANKS', 'investor_type']  = 'BANK'
+df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['investor_type'] == 'PRIVATE BANKS', 'investor_type']  = 'PRIVATE BANK'
+df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['investor_type'] == 'BROKER DEALERS', 'investor_type']  = 'BROKER/DEALER'
+df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['investor_type'] == 'HEDGE FUNDS', 'investor_type']  = 'HEDGE FUND'
+df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['investor_type'] == 'FUND MANAGER', 'investor_type']  = 'ASSET MANAGERS/FUND MANAGERS'
+df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['investor_type'] == 'INSURANCE FIRM', 'investor_type']  = 'INSURANCE/PENSION'
+df_detailbonds_all_transactions.loc[df_detailbonds_all_transactions['investor_type'] == 'INSURANCE COMPANIES', 'investor_type']  = 'INSURANCE/PENSION'
+
+type_dict = dict(zip(df_detailbonds_all_transactions.investor_name, df_detailbonds_all_transactions.investor_type))
+
+
+list_final_output = []
+
+for each_investor in final_selected_investors:
+    
+    list_similar_ratio = []
+    list_other_ratio   = []
+    
+    list_all_ratio     = []   
+    
+    df_ratio_one_investor     = df_firm_ratio_distance[df_firm_ratio_distance['investor_name'] == each_investor]
+      
+    df_top_ratio_one_investor = df_ratio_one_investor.iloc[:8,:]
+    
+    list_all_ratio = list(df_top_ratio_one_investor['ratio'])
+       
+    for each_security in df_top_ratio_one_investor['security']:
+        if each_security in set_top_security:
+            list_similar_ratio.append(float(df_top_ratio_one_investor[df_top_ratio_one_investor['security']==each_security]['ratio']))
+        else:
+            list_other_ratio.append(float(df_top_ratio_one_investor[df_top_ratio_one_investor['security']==each_security]['ratio']))
+        
+
+    final_ratio = 0.01
+    variance    = 0
+    
+    if len(list_similar_ratio) != 0 and len(list_other_ratio) != 0:
+        final_ratio = (len(list_similar_ratio)*statistics.median(list_similar_ratio) + statistics.median(list_other_ratio)) / (len(list_similar_ratio)+1)
+        variance    = (len(list_similar_ratio)*np.var(list_similar_ratio) + np.var(list_other_ratio)) / (len(list_similar_ratio)+1)
+    
+    elif len(list_similar_ratio) == 0 and len(list_other_ratio) != 0:
+        final_ratio = statistics.median(list_other_ratio) 
+        variance    = np.var(list_other_ratio) 
+    
+    elif len(list_similar_ratio) != 0 and len(list_other_ratio) == 0:
+        final_ratio = statistics.median(list_similar_ratio) 
+        variance    = np.var(list_similar_ratio) 
+    
+    firm_size = DEAL_SIZE_MIL * final_ratio
+    
+    if variance <= 0.00015:
+        firm_size_min = firm_size * 0.85
+        firm_size_max = firm_size * 1.15
+    elif variance > 0.00015 and variance <= 0.002:
+        firm_size_min = firm_size * 0.75
+        firm_size_max = firm_size * 1.25
+    else:
+        firm_size_min = firm_size * 0.65
+        firm_size_max = firm_size * 1.35
+        
+       
+#==============================================================================
+#     print (each_investor)
+#     print (list_similar_ratio)
+#     print (list_other_ratio)
+#==============================================================================
+    
+    one_row = [type_dict[each_investor],each_investor, round(firm_size,2), round(firm_size_min,2), round(firm_size_max,2)]
+   
+    list_final_output.append(one_row)
+    
 
 
 
+output          = pd.DataFrame(list_final_output)
+output.columns  = ['Investor Type','Investor Name','Expected Size','Min','Max']
+output          = output.sort_values(by='Expected Size',ascending  = False)
 
 
+output.to_csv(ISSUER_TICKER+'_output.csv',index=False)
 
 
 

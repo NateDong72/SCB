@@ -125,7 +125,8 @@ cols_investor_retrieve = [
                          'allocated',
                          'issue_date',
                          'security',
-                         'investor_country'
+                         'investor_country',
+                         'investor_type'
                          ]
 
 df_all_trans = df_detailbonds[cols_investor_retrieve]
@@ -195,7 +196,6 @@ with open(model_training_input+'detailbonds_mms.pickle', 'wb') as handle:
 
 df_scaled   = pd.DataFrame(df_scaled, columns=cols_scale)
 df_final    = pd.concat([df_one_hot_encoded.iloc[: ,:1], df_scaled], axis=1)
-
 
 
 

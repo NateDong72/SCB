@@ -15,7 +15,7 @@ if not sys.warnoptions:
 os.chdir(os.path.dirname(__file__))
 
 model_training_input    = '../model_input/training_input/'
-user_input              = '../model_input/user_input/KDB.csv'
+user_input              = '../model_input/user_input/STANLN.csv'
 model_output            = '../model_output/predicted_securities/'
 
 df_user_input           = pd.read_csv(user_input, delimiter = '|',encoding = "ISO-8859-1", keep_default_na=False)
@@ -175,7 +175,7 @@ df_final_user_input['fi_corp_sov_map'] = df_final_user_input['fi_corp_sov_map'] 
 
 
 header_important = ['TENOR', 'CURRENCY', 'ISSUER COUNTRY', 'RATING TYPE' ]
-header_medium    = ['ISSUER REGION', 'BASEL CLASSIFICATION',  'SPECIAL CLASSIFICATION','ISSUER TYPE', 'ISSUER RATINGS', 'COUPON TYPE', 'INDUSTRY SECTOR']
+header_medium    = ['ISSUER REGION', 'BASEL CLASSIFICATION','SPECIAL CLASSIFICATION','ISSUER TYPE', 'ISSUER RATINGS', 'COUPON TYPE', 'INDUSTRY SECTOR']
 header_low       = ['RANKING', 'MATURITY TYPE', 'INDUSTRY']
 
 
@@ -411,7 +411,7 @@ df_sdbondstatic_ori_dedup.loc[df_sdbondstatic_ori_dedup['ranking'] == '', 'ranki
 if BASEL_CLASSIFICATION == 'TIER 1':
     df_sdbondstatic_ori_dedup = df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['ranking'] != 'SENIOR']
 
-if RANKING == 'SENIOR':
+elif RANKING == 'SENIOR':
     df_sdbondstatic_ori_dedup = df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['ranking'] != 'SUBORDINATED']
     df_sdbondstatic_ori_dedup = df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['maturity_type'] != 'PERP']
     df_sdbondstatic_ori_dedup = df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['basel_classification'] != 'TIER 1']
@@ -468,8 +468,22 @@ if len(df_sdbondstatic_ori_dedup_top_3) > 0:
 print (df_join_final)
 
 
+final_output = []
+
+for each_security in df_join_final['security']:
+    one_record = []
+    one_record.append(each_security)
+    one_record.append(str(df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['nickname'] == each_security]['issuer_ticker'].item()))
+    one_record.append(str(df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['nickname'] == each_security]['issue_date'].item()))
+    one_record.append(str(df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['nickname'] == each_security]['currency'].item()))
+    one_record.append(float(df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['nickname'] == each_security]['deal_size_mil']))
+    one_record.append(round(float(df_sdbondstatic_ori_dedup[df_sdbondstatic_ori_dedup['nickname'] == each_security]['res_maturity']),2))
+    final_output.append(one_record)
 
 
+df_final_output = pd.DataFrame(final_output)
+df_final_output.columns = ['Security', 'Issuer','Issue Date', 'Currency' ,'Size', 'Residual Maturity' ]
+df_final_output.to_csv('output.csv',index=False)
 
 
 

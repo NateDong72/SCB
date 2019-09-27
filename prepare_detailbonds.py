@@ -199,7 +199,7 @@ df_final    = pd.concat([df_one_hot_encoded.iloc[: ,:1], df_scaled], axis=1)
 
 
 
-numeric_scale_1 = 5.0
+numeric_scale_1 = 8.0
 df_final['bond_age']        = df_final['bond_age'] * numeric_scale_1
 
 numeric_scale_2 = 3.0

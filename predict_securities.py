@@ -15,7 +15,7 @@ if not sys.warnoptions:
 os.chdir(os.path.dirname(__file__))
 
 model_training_input    = '../model_input/training_input/'
-user_input              = '../model_input/user_input/STANLN.csv'
+user_input              = '../model_input/user_input/WARBAB.csv'
 model_output            = '../model_output/predicted_securities/'
 
 df_user_input           = pd.read_csv(user_input, delimiter = '|',encoding = "ISO-8859-1", keep_default_na=False)
@@ -173,10 +173,17 @@ numeric_scale_4 = 2.5
 df_final_user_input['fi_corp_sov_map'] = df_final_user_input['fi_corp_sov_map'] * numeric_scale_4
 
 
+if SPECIAL_CLASSIFICATION == 'N/A':
+    header_important = ['CURRENCY', 'ISSUER COUNTRY', 'RATING TYPE' ]
+    header_medium    = ['TENOR', 'BASEL CLASSIFICATION','SPECIAL CLASSIFICATION',  'COUPON TYPE']
+    header_low       = ['ISSUER REGION','RANKING', 'MATURITY TYPE', 'ISSUER TYPE','ISSUER RATINGS', 'INDUSTRY', 'INDUSTRY SECTOR']
+else:
+    header_important = ['CURRENCY',  'SPECIAL CLASSIFICATION', 'RATING TYPE']
+    header_medium    = ['TENOR', 'BASEL CLASSIFICATION', 'ISSUER REGION','ISSUER COUNTRY', 'COUPON TYPE']
+    header_low       = ['RANKING', 'MATURITY TYPE', 'ISSUER TYPE','ISSUER RATINGS', 'INDUSTRY', 'INDUSTRY SECTOR']
 
-header_important = ['TENOR', 'CURRENCY', 'ISSUER COUNTRY', 'RATING TYPE' ]
-header_medium    = ['ISSUER REGION', 'BASEL CLASSIFICATION','SPECIAL CLASSIFICATION','ISSUER TYPE', 'ISSUER RATINGS', 'COUPON TYPE', 'INDUSTRY SECTOR']
-header_low       = ['RANKING', 'MATURITY TYPE', 'INDUSTRY']
+
+
 
 
 dict_col_header = {
